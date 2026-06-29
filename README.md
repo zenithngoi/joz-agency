@@ -1,16 +1,26 @@
-# React + Vite
+# JOZ Agency — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> Digital marketing agency operations dashboard
+> Bloomberg/trading terminal aesthetic
+> Live at: **https://joz-agency-k3ya.vercel.app**
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+- **Vite + React** — SPA, 8 pages
+- **react-router-dom** — client-side routing with SPA rewrite on Vercel
+- **Design system** — Space Grotesk + IBM Plex Mono, `--ink:#0B0E14`, `--gold:#D4AF37`
+- **API layer** — `src/api.js` — all backend calls go through this single module
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Pages
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | Dashboard | KPI strip, agent roster, memory feed, client table |
+| `/clients` | Clients | Client roster, profile pages, add client modal |
+| `/content` | Content | 6-stage kanban pipeline (Ideas → Analyzed) |
+| `/ads` | Ads | Ads book ranked by ROAS, kill/scale approval modal |
+| `/memory` | Memory | Searchable memory library with tag/client filters |
+| `/reports` | Reports | Weekly + monthly performance reports |
+| `/settings` | Settings | API key, agent config, heartbeat sc
