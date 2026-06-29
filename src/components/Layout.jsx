@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { api } from '../api.js'
 
 const NAV = [
   { to: '/dashboard', icon: '⬛', label: 'Dashboard' },
@@ -20,17 +21,59 @@ const TICKER_MSGS = [
   'Content Agent: TikTok script drafted · hook score 94/100',
 ]
 
+const STATUS_COLOR = { WORKING:'var(--profit)', DONE:'var(--dim)', QUEUED:'var(--dim)', IDLE:'var(--dim)', ERROR:'var(--loss)', 'NEEDS YOU':'var(--warn)' }
+
 export default function Layout() {
-  const [tick, setTick] = useState(0)
+  const [tick, setTick]           = useState(0)
+  const [agents, setAgents]       = useState([])
+  const [loopStatus, setLoop]     = useState({ running:false, loopNumber:12 })
+  const [backendOk, setBackendOk] = useState(null) // null=checking, true, false
   const location = useLocation()
 
   // rotate ticker every 4.5s
-  useState(() => {
+  useEffect(() => {
     const t = setInterval(() => setTick(i => (i + 1) % TICKER_MSGS.length), 4500)
     return () => clearInterval(t)
-  })
+  }, [])
+
+  // poll backend every 5s
+  const pollBackend = useCallback(async () => {
+    try {
+      const [agentData, loopData] = await Promise.all([api.getAgents(), api.getLoopStatus()])
+      setAgents(agentData)
+      setLoop(loopData)
+      setBackendOk(true)
+    } catch {
+      setBackendOk(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    pollBackend()
+    const t = setInterval(pollBackend, 5000)
+    return () => clearInterval(t)
+  }, [pollBackend])
+
+  const triggerLoop = async () => {
+    try {
+      await api.startLoop('demo-broker')
+      pollBackend()
+    } catch (e) {
+      alert(e.message)
+    }
+  }
 
   const pageTitle = NAV.find(n => location.pathname.startsWith(n.to))?.label || 'Dashboard'
+
+  // sidebar agents: show first 4 or live agents from backend
+  const sidebarAgents = agents.length > 0
+    ? agents.slice(0, 4).map(a => ({ emoji: '●', name: a.name, state: a.status, color: STATUS_COLOR[a.status] || 'var(--dim)' }))
+    : [
+        { emoji:'🧭', name:'Orchestrator', state:'IDLE', color:'var(--dim)' },
+        { emoji:'🔎', name:'Research',     state:'IDLE', color:'var(--dim)' },
+        { emoji:'✍️', name:'Content',      state:'IDLE', color:'var(--dim)' },
+        { emoji:'🎯', name:'Ads',          state:'IDLE', color:'var(--dim)' },
+      ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -100,23 +143,38 @@ export default function Layout() {
             ))}
           </nav>
 
-          {/* sidebar footer — agent status summary */}
+          {/* sidebar footer — live agent status + loop trigger */}
           <div style={{ borderTop: '1px solid var(--line)', padding: '12px 16px' }}>
-            <div style={{ fontSize: 9, letterSpacing: 1.5, color: 'var(--dim)', textTransform: 'uppercase', marginBottom: 8 }}>
-              Loop Status
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <div style={{ fontSize: 9, letterSpacing: 1.5, color: 'var(--dim)', textTransform: 'uppercase' }}>
+                Loop #{loopStatus.loopNumber}
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                <div style={{ width:6, height:6, borderRadius:3, background: backendOk===true ? 'var(--profit)' : backendOk===false ? 'var(--loss)' : 'var(--warn)' }}/>
+                <span style={{ fontSize:8.5, color:'var(--dim)', fontFamily:"'IBM Plex Mono',monospace" }}>
+                  {backendOk===true ? 'API' : backendOk===false ? 'OFFLINE' : '...'}
+                </span>
+              </div>
             </div>
-            {[
-              { emoji: '🧭', name: 'Orchestrator', state: 'WORKING', color: 'var(--profit)' },
-              { emoji: '🔎', name: 'Research', state: 'DONE', color: 'var(--dim)' },
-              { emoji: '✍️', name: 'Content', state: 'WORKING', color: 'var(--profit)' },
-              { emoji: '🎯', name: 'Ads', state: 'NEEDS YOU', color: 'var(--warn)' },
-            ].map(a => (
+            {sidebarAgents.map(a => (
               <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{ fontSize: 11 }}>{a.emoji}</span>
+                <span style={{ fontSize: 9, color: a.color }}>●</span>
                 <span style={{ fontSize: 10.5, color: 'var(--muted)', flex: 1 }}>{a.name}</span>
                 <span className="mono" style={{ fontSize: 9, color: a.color, letterSpacing: .5 }}>{a.state}</span>
               </div>
             ))}
+            <button
+              onClick={triggerLoop}
+              disabled={loopStatus.running}
+              style={{
+                width:'100%', marginTop:10, padding:'7px 0', borderRadius:6, fontSize:10,
+                fontWeight:700, letterSpacing:1, textTransform:'uppercase', cursor: loopStatus.running ? 'not-allowed' : 'pointer',
+                border:'1px solid rgba(212,175,55,.5)', background: loopStatus.running ? 'transparent' : 'rgba(212,175,55,.08)',
+                color: loopStatus.running ? 'var(--dim)' : 'var(--gold)',
+              }}
+            >
+              {loopStatus.running ? `Running: ${loopStatus.currentAgent || '...'}` : '⚡ Run Loop'}
+            </button>
           </div>
         </aside>
 
@@ -132,9 +190,11 @@ export default function Layout() {
               {pageTitle}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--profit)', display: 'inline-block',
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: backendOk ? 'var(--profit)' : 'var(--warn)', display: 'inline-block',
                 animation: 'pulse 1.6s infinite' }}></span>
-              <span className="mono" style={{ fontSize: 10, color: 'var(--profit)' }}>8 AGENTS LIVE</span>
+              <span className="mono" style={{ fontSize: 10, color: backendOk ? 'var(--profit)' : 'var(--warn)' }}>
+                {loopStatus.running ? `LOOP #${loopStatus.loopNumber} RUNNING` : '8 AGENTS READY'}
+              </span>
             </div>
           </div>
 
