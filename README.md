@@ -23,4 +23,39 @@
 | `/ads` | Ads | Ads book ranked by ROAS, kill/scale approval modal |
 | `/memory` | Memory | Searchable memory library with tag/client filters |
 | `/reports` | Reports | Weekly + monthly performance reports |
-| `/settings` | Settings | API key, agent config, heartbeat sc
+| `/settings` | Settings | API key, agent config, heartbeat schedule |
+
+## Backend
+
+Backend: `https://joz-backend-production.up.railway.app`
+Repo: `zenithngoi/joz-backend` (private)
+
+Set `VITE_API_URL` in Vercel environment variables to the Railway backend URL.
+The `api.js` module falls back to `http://localhost:3001` for local dev.
+
+## Local Development
+
+```bash
+npm install
+npm run dev        # http://localhost:5173
+```
+
+Backend must be running locally on port 3001 for local dev.
+
+## Deploy
+
+Vercel auto-deploys from `main` branch on GitHub push.
+`vercel.json` contains the SPA rewrite rule so all routes serve `index.html`.
+
+## Security
+
+- Anthropic API key lives in Railway env vars only — never in frontend code or browser
+- Human approval required for all ad spend decisions — Ads agent only sets `pendingApproval` flag, never auto-executes
+- CORS on backend: localhost + Vercel domain + `*.vercel.app` wildcard
+
+## Agents
+
+The 8-agent ApexOps loop runs on the backend:
+Orchestrator → Research → Content → SEO/GEO → Publishing → Analytics → Ads → Memory
+
+Trigger a loop from the Dashboard → Agent Roster → Start Loop (select a client).

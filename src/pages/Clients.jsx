@@ -1,61 +1,5 @@
-import { useState } from 'react'
-
-const CLIENTS = [
-  {
-    id: 1,
-    name: 'Demo Broker',
-    industry: 'Forex / CFD',
-    market: 'MY / SG',
-    phase: 'Phase 1',
-    startDate: '2026-04-01',
-    status: 'ACTIVE',
-    followers: { tiktok: 21480, youtube: 9860, instagram: 12340, x: 4537 },
-    growth:    { tiktok: '+9.1%', youtube: '+5.4%', instagram: '+6.7%', x: '+3.2%' },
-    roas: 4.2,
-    leads: 342,
-    clients_converted: 8,
-    spend: 'RM 2,600',
-    cpl: 'RM 7.60',
-    voice: 'Professional · Educational · Trust-first',
-    targets: ['60+ pieces/mo', '20+ leads/mo', '3×+ ROAS'],
-  },
-  {
-    id: 2,
-    name: 'E-Shop MY',
-    industry: 'E-Commerce',
-    market: 'MY',
-    phase: 'Phase 2',
-    startDate: '2026-02-15',
-    status: 'ACTIVE',
-    followers: { tiktok: 18200, youtube: 3400, instagram: 22440, x: 1100 },
-    growth:    { tiktok: '+6.2%', youtube: '+2.1%', instagram: '+8.4%', x: '+0.9%' },
-    roas: 3.8,
-    leads: 194,
-    clients_converted: 22,
-    spend: 'RM 1,800',
-    cpl: 'RM 9.28',
-    voice: 'Friendly · Trendy · Conversion-focused',
-    targets: ['80+ pieces/mo', '40+ leads/mo', '4×+ ROAS'],
-  },
-  {
-    id: 3,
-    name: 'PropFirm SG',
-    industry: 'Prop Trading',
-    market: 'SG / ID',
-    phase: 'Phase 1',
-    startDate: '2026-06-01',
-    status: 'ONBOARDING',
-    followers: { tiktok: 9100, youtube: 2200, instagram: 4800, x: 890 },
-    growth:    { tiktok: '+2.1%', youtube: '+1.4%', instagram: '+3.0%', x: '+0.6%' },
-    roas: null,
-    leads: 41,
-    clients_converted: 0,
-    spend: 'RM 400',
-    cpl: '—',
-    voice: 'Aspirational · Data-driven · Elite',
-    targets: ['40+ pieces/mo', '15+ leads/mo', '2×+ ROAS'],
-  },
-]
+import { useState, useEffect } from 'react'
+import { api } from '../api.js'
 
 const PLATFORMS = ['tiktok', 'youtube', 'instagram', 'x']
 const PLATFORM_LABELS = { tiktok: 'TikTok', youtube: 'YouTube', instagram: 'Instagram', x: 'X' }
@@ -156,7 +100,7 @@ function ClientCard({ client, onClick }) {
           <div key={p} style={{ textAlign:'center', background:'var(--ink)', borderRadius:5, padding:'6px 4px' }}>
             <div style={{ fontSize:8.5, color:'var(--dim)', textTransform:'uppercase', letterSpacing:.5, marginBottom:2 }}>{PLATFORM_LABELS[p]}</div>
             <div className="mono" style={{ fontSize:11, fontWeight:600 }}>{(client.followers[p]/1000).toFixed(1)}k</div>
-            <div style={{ fontSize:9.5, color:'var(--profit)', fontFamily:"'IBM Plex Mono',monospace" }}>{client.growth[p]}</div>
+            <div style={{ fontSize:9.5, color:'var(--profit)', fontFamily:"'IBM Plex Mono',monospace" }}>{client.growth?.[p] ?? '—'}</div>
           </div>
         ))}
       </div>
@@ -219,7 +163,7 @@ function ClientProfile({ client, onBack }) {
               <div key={p} style={{ background:'var(--panel)', padding:'14px 16px' }}>
                 <div style={{ fontSize:10, letterSpacing:1.5, textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:6 }}>{PLATFORM_LABELS[p]}</div>
                 <div className="mono" style={{ fontSize:20, fontWeight:700, marginBottom:2 }}>{client.followers[p].toLocaleString()}</div>
-                <div style={{ fontSize:11, color:'var(--profit)', fontFamily:"'IBM Plex Mono',monospace" }}>{client.growth[p]} 30d</div>
+                <div style={{ fontSize:11, color:'var(--profit)', fontFamily:"'IBM Plex Mono',monospace" }}>{client.growth?.[p] ?? '—'} 30d</div>
               </div>
             ))}
           </div>
@@ -245,7 +189,7 @@ function ClientProfile({ client, onBack }) {
             ))}
             <div style={{ borderTop:'1px solid var(--line)', paddingTop:10, marginTop:2 }}>
               <div style={{ fontSize:10, letterSpacing:.5, textTransform:'uppercase', color:'var(--dim)', marginBottom:6 }}>30-Day Targets</div>
-              {client.targets.map(t => (
+              {(client.targets ?? []).map(t => (
                 <div key={t} style={{ fontSize:11.5, color:'var(--muted)', padding:'3px 0', fontFamily:"'IBM Plex Mono',monospace" }}>▸ {t}</div>
               ))}
             </div>
@@ -283,32 +227,39 @@ function ClientProfile({ client, onBack }) {
 }
 
 export default function Clients() {
-  const [clients, setClients] = useState(CLIENTS)
+  const [clients, setClients] = useState([])
   const [selected, setSelected] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [error, setError] = useState(null)
 
-  const addClient = form => {
-    setClients(prev => [...prev, {
-      id: prev.length + 1,
-      name: form.name,
-      industry: form.industry || '—',
-      market: form.market || '—',
-      phase: 'Phase 1',
-      startDate: new Date().toISOString().split('T')[0],
-      status: 'ONBOARDING',
-      followers: { tiktok:0, youtube:0, instagram:0, x:0 },
-      growth:    { tiktok:'—', youtube:'—', instagram:'—', x:'—' },
-      roas: null, leads:0, clients_converted:0,
-      spend:'RM 0', cpl:'—',
-      voice: form.voice || '—',
-      targets:['TBD after briefing'],
-    }])
+  useEffect(() => {
+    api.getClients()
+      .then(setClients)
+      .catch(e => setError(e.message))
+  }, [])
+
+  const addClient = async form => {
+    try {
+      const created = await api.createClient(form)
+      setClients(prev => [...prev, created])
+    } catch (e) {
+      setError(e.message)
+    }
   }
 
   const activeClient = selected !== null ? clients.find(c => c.id === selected) : null
 
+  if (clients.length === 0 && !error) {
+    return <div style={{ padding:32, textAlign:'center', color:'var(--dim)', fontFamily:"'IBM Plex Mono',monospace", fontSize:12 }}>Loading clients...</div>
+  }
+
   return (
     <div style={{ padding:16, maxWidth:1400, margin:'0 auto' }}>
+      {error && (
+        <div style={{ marginBottom:12, padding:'10px 14px', background:'rgba(246,70,93,.1)', border:'1px solid rgba(246,70,93,.3)', borderRadius:6, fontSize:12, color:'var(--loss)', fontFamily:"'IBM Plex Mono',monospace" }}>
+          ⚠ Backend error: {error} — check Railway is running
+        </div>
+      )}
       {showAdd && <AddClientModal onClose={() => setShowAdd(false)} onAdd={addClient} />}
 
       {activeClient ? (

@@ -1,54 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { api } from '../api.js'
 
 const PLATFORMS = ['ALL', 'TIKTOK', 'IG REEL', 'YT SHORT', 'X']
 
-const INITIAL_STAGES = [
-  {
-    id: 'ideas',
-    name: 'Ideas',
-    cards: [
-      { id:1, title:'Funded trader payout reaction',    platform:'TIKTOK',    priority:'HIGH',  hook:'Proof hook', notes:'' },
-      { id:2, title:'Rebate math in 30 sec',            platform:'IG REEL',   priority:'MED',   hook:'Education',  notes:'' },
-      { id:3, title:'"Brokers hate this" hook',         platform:'YT SHORT',  priority:'MED',   hook:'Curiosity',  notes:'' },
-      { id:4, title:'5 prop firm myths debunked',       platform:'TIKTOK',    priority:'LOW',   hook:'List hook',  notes:'' },
-    ]
-  },
-  {
-    id: 'drafting',
-    name: 'Drafting',
-    cards: [
-      { id:5, title:'Smart Money Concepts pt.4',        platform:'TIKTOK',    priority:'HIGH',  hook:'Series',     notes:'Script 80% done' },
-      { id:6, title:'Client case study thread',         platform:'X',         priority:'MED',   hook:'Social proof',notes:'' },
-    ]
-  },
-  {
-    id: 'seo',
-    name: 'SEO Review',
-    cards: [
-      { id:7, title:'Volume Profile myth-bust',         platform:'YT SHORT',  priority:'HIGH',  hook:'Myth bust',  notes:'SEO score 8.4/10' },
-    ]
-  },
-  {
-    id: 'scheduled',
-    name: 'Scheduled',
-    cards: [
-      { id:8, title:'Volume Profile myth (trim)',       platform:'YT SHORT',  priority:'HIGH',  hook:'Myth bust',  notes:'8:00 PM MYT' },
-    ]
-  },
-  {
-    id: 'posted',
-    name: 'Posted',
-    cards: [
-      { id:9, title:'"RM0 → RM10k" v2',                platform:'TIKTOK',    priority:'HIGH',  hook:'Proof hook', notes:'2h ago · 12k views' },
-    ]
-  },
-  {
-    id: 'analyzed',
-    name: 'Analyzed',
-    cards: [
-      { id:10, title:'MACD strategy reel',              platform:'IG REEL',   priority:'MED',   hook:'Education',  notes:'ER 8.4% → memory.md ✓' },
-    ]
-  },
+const STAGE_META = [
+  { id: 'ideas',     name: 'Ideas' },
+  { id: 'drafting',  name: 'Drafting' },
+  { id: 'seo',       name: 'SEO Review' },
+  { id: 'scheduled', name: 'Scheduled' },
+  { id: 'posted',    name: 'Posted' },
+  { id: 'analyzed',  name: 'Analyzed' },
 ]
 
 const PRIORITY_COLOR = {
@@ -66,17 +27,29 @@ const STAGE_ACCENT = {
   analyzed:  'var(--profit)',
 }
 
-let nextId = 20
+// Convert backend pipeline object {ideas:[...], drafting:[...], ...} → stages array
+function pipelineToStages(pipeline) {
+  return STAGE_META.map(meta => ({
+    ...meta,
+    cards: (pipeline[meta.id] || []),
+  }))
+}
 
 function NewCardModal({ stageId, onClose, onAdd }) {
   const [form, setForm] = useState({ title:'', platform:'TIKTOK', priority:'MED', hook:'', notes:'' })
+  const [saving, setSaving] = useState(false)
   const set = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
   const inputStyle = {
     width:'100%', background:'var(--ink)', border:'1px solid var(--line)',
     borderRadius:5, padding:'8px 10px', color:'var(--text)', fontSize:13,
     fontFamily:'inherit', outline:'none', boxSizing:'border-box',
   }
-  const selectStyle = { ...inputStyle }
+  const handleAdd = async () => {
+    if (!form.title) return
+    setSaving(true)
+    await onAdd(stageId, form)
+    onClose()
+  }
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.75)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }}
       onClick={onClose}>
@@ -90,13 +63,13 @@ function NewCardModal({ stageId, onClose, onAdd }) {
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
           <div>
             <div style={{ fontSize:10, letterSpacing:1, textTransform:'uppercase', color:'var(--dim)', marginBottom:5 }}>Platform</div>
-            <select style={selectStyle} value={form.platform} onChange={set('platform')}>
+            <select style={inputStyle} value={form.platform} onChange={set('platform')}>
               {['TIKTOK','IG REEL','YT SHORT','X'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
           <div>
             <div style={{ fontSize:10, letterSpacing:1, textTransform:'uppercase', color:'var(--dim)', marginBottom:5 }}>Priority</div>
-            <select style={selectStyle} value={form.priority} onChange={set('priority')}>
+            <select style={inputStyle} value={form.priority} onChange={set('priority')}>
               {['HIGH','MED','LOW'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
@@ -111,10 +84,11 @@ function NewCardModal({ stageId, onClose, onAdd }) {
         </div>
         <div style={{ display:'flex', gap:10 }}>
           <button onClick={onClose} style={{ flex:1, padding:'9px 0', borderRadius:6, border:'1px solid var(--line)', background:'transparent', color:'var(--muted)', fontSize:12, cursor:'pointer' }}>Cancel</button>
-          <button onClick={() => { if(form.title){ onAdd(stageId, { ...form, id: ++nextId }); onClose() }}} style={{
+          <button onClick={handleAdd} disabled={saving} style={{
             flex:2, padding:'9px 0', borderRadius:6, border:'1px solid rgba(212,175,55,.5)',
             background:'rgba(212,175,55,.1)', color:'var(--gold)', fontSize:12, fontWeight:700, cursor:'pointer',
-          }}>Add Card →</button>
+            opacity: saving ? .6 : 1,
+          }}>{saving ? 'Saving...' : 'Add Card →'}</button>
         </div>
       </div>
     </div>
@@ -161,43 +135,60 @@ function CardDetail({ card, stages, onClose, onMove, onDelete }) {
             ))}
           </div>
         </div>
-        <button onClick={() => { onDelete(card.id); onClose() }} style={{
-          width:'100%', padding:'8px 0', borderRadius:6, border:'1px solid rgba(246,70,93,.3)',
-          background:'transparent', color:'var(--loss)', fontSize:11, cursor:'pointer', letterSpacing:1,
-        }}>Delete Card</button>
       </div>
     </div>
   )
 }
 
 export default function Content() {
-  const [stages, setStages] = useState(INITIAL_STAGES)
+  const [stages, setStages]           = useState(STAGE_META.map(m => ({ ...m, cards: [] })))
   const [platformFilter, setPlatformFilter] = useState('ALL')
-  const [dragCard, setDragCard] = useState(null)
-  const [dragOver, setDragOver] = useState(null)
+  const [dragCard, setDragCard]       = useState(null)
+  const [dragOver, setDragOver]       = useState(null)
   const [newCardStage, setNewCardStage] = useState(null)
-  const [detailCard, setDetailCard] = useState(null)
-  const [agentToast, setAgentToast] = useState(false)
+  const [detailCard, setDetailCard]   = useState(null)
+  const [agentToast, setAgentToast]   = useState(false)
+  const [error, setError]             = useState(null)
 
   const totalCards = stages.reduce((a, s) => a + s.cards.length, 0)
 
-  const addCard = (stageId, card) => {
-    setStages(prev => prev.map(s => s.id === stageId ? { ...s, cards:[...s.cards, card] } : s))
+  // Fetch pipeline on mount
+  useEffect(() => {
+    api.getPipeline()
+      .then(pipeline => setStages(pipelineToStages(pipeline)))
+      .catch(e => setError(e.message))
+  }, [])
+
+  const addCard = async (stageId, form) => {
+    try {
+      const card = await api.addCard({ stage: stageId, ...form })
+      setStages(prev => prev.map(s =>
+        s.id === stageId ? { ...s, cards: [...s.cards, card] } : s
+      ))
+    } catch (e) {
+      setError(e.message)
+    }
   }
 
-  const moveCard = (cardId, targetStageId) => {
+  const moveCard = async (cardId, targetStageId) => {
+    // Optimistic UI update
     let found = null
-    const without = stages.map(s => {
-      const c = s.cards.find(c => c.id === cardId)
-      if (c) found = c
-      return { ...s, cards: s.cards.filter(c => c.id !== cardId) }
+    setStages(prev => {
+      const without = prev.map(s => {
+        const c = s.cards.find(c => c.id === cardId)
+        if (c) found = c
+        return { ...s, cards: s.cards.filter(c => c.id !== cardId) }
+      })
+      return without.map(s => s.id === targetStageId ? { ...s, cards: [...s.cards, found] } : s)
     })
-    if (!found) return
-    setStages(without.map(s => s.id === targetStageId ? { ...s, cards:[...s.cards, found] } : s))
-  }
-
-  const deleteCard = cardId => {
-    setStages(prev => prev.map(s => ({ ...s, cards: s.cards.filter(c => c.id !== cardId) })))
+    // Persist to backend
+    try {
+      await api.moveCard(cardId, targetStageId)
+    } catch (e) {
+      setError(e.message)
+      // Re-fetch to reconcile
+      api.getPipeline().then(p => setStages(pipelineToStages(p))).catch(() => {})
+    }
   }
 
   const onDragStart = (card) => setDragCard(card)
@@ -214,9 +205,8 @@ export default function Content() {
   return (
     <div style={{ padding:16, maxWidth:1600, margin:'0 auto' }}>
       {newCardStage && <NewCardModal stageId={newCardStage} onClose={() => setNewCardStage(null)} onAdd={addCard} />}
-      {detailCard   && <CardDetail card={detailCard} stages={stages} onClose={() => setDetailCard(null)} onMove={moveCard} onDelete={deleteCard} />}
+      {detailCard   && <CardDetail card={detailCard} stages={stages} onClose={() => setDetailCard(null)} onMove={moveCard} onDelete={() => {}} />}
 
-      {/* agent toast */}
       {agentToast && (
         <div style={{
           position:'fixed', top:70, right:20, zIndex:300,
@@ -226,6 +216,12 @@ export default function Content() {
         }}>⚡ Content Agent triggered — generating 5 ideas...</div>
       )}
 
+      {error && (
+        <div style={{ marginBottom:12, padding:'10px 14px', background:'rgba(246,70,93,.1)', border:'1px solid rgba(246,70,93,.3)', borderRadius:6, fontSize:12, color:'var(--loss)', fontFamily:"'IBM Plex Mono',monospace" }}>
+          ⚠ Backend error: {error}
+        </div>
+      )}
+
       {/* header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, flexWrap:'wrap', gap:10 }}>
         <div>
@@ -233,7 +229,6 @@ export default function Content() {
           <div style={{ fontSize:13, color:'var(--muted)' }}>{totalCards} cards in flight · Kanban view</div>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          {/* platform filter */}
           <div style={{ display:'flex', gap:4 }}>
             {PLATFORMS.map(p => (
               <button key={p} onClick={() => setPlatformFilter(p)} style={{
@@ -245,13 +240,11 @@ export default function Content() {
               }}>{p}</button>
             ))}
           </div>
-          {/* trigger agent */}
           <button onClick={triggerAgent} style={{
             padding:'6px 14px', borderRadius:6, border:'1px solid rgba(46,189,133,.4)',
             background:'rgba(46,189,133,.08)', color:'var(--profit)', fontSize:10,
             fontWeight:700, letterSpacing:1, textTransform:'uppercase', cursor:'pointer',
           }}>⚡ Run Content Agent</button>
-          {/* new card (goes to ideas) */}
           <button onClick={() => setNewCardStage('ideas')} style={{
             padding:'6px 14px', borderRadius:6, border:'1px solid rgba(212,175,55,.5)',
             background:'rgba(212,175,55,.08)', color:'var(--gold)', fontSize:10,
@@ -281,7 +274,6 @@ export default function Content() {
                 transition:'background .15s',
               }}
             >
-              {/* column header */}
               <div style={{
                 display:'flex', justifyContent:'space-between', alignItems:'center',
                 marginBottom:10, paddingBottom:8, borderBottom:`1px solid ${accent}33`,
@@ -297,7 +289,6 @@ export default function Content() {
                 </div>
               </div>
 
-              {/* cards */}
               {filtered.map(card => (
                 <div
                   key={card.id}

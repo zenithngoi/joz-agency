@@ -1,12 +1,5 @@
-import { useState } from 'react'
-
-const INITIAL_ADS = [
-  { id:1, rank:1, name:'"RM0 → RM10k Shop" hook',        platform:'TIKTOK',    type:'Boosted organic', client:'Demo Broker', spend:920,  cpa:8.40,  roas:6.8, status:'SCALING', budget:1200, impressions:'284k', ctr:'3.2%', history:[{date:'Jun 14',action:'Created',val:''},{date:'Jun 15',action:'Scale +20%',val:'RM 800→960'},{date:'Jun 16',action:'Scale +20%',val:'RM 960→1,152'}] },
-  { id:2, rank:2, name:'IB Rebate explainer v3',           platform:'YOUTUBE',   type:'Shorts',          client:'Demo Broker', spend:640,  cpa:11.20, roas:4.9, status:'LIVE',    budget:640,  impressions:'91k',  ctr:'2.1%', history:[{date:'Jun 12',action:'Created',val:''},{date:'Jun 14',action:'Budget +10%',val:'RM 580→640'}] },
-  { id:3, rank:3, name:'"Trade higher. Earn higher."',     platform:'INSTAGRAM', type:'Reels',           client:'Demo Broker', spend:480,  cpa:14.70, roas:3.4, status:'LIVE',    budget:480,  impressions:'67k',  ctr:'1.8%', history:[{date:'Jun 10',action:'Created',val:''}] },
-  { id:4, rank:4, name:'Prop firm myth-bust thread',       platform:'X',         type:'Promoted',        client:'PropFirm SG', spend:210,  cpa:26.90, roas:1.9, status:'WATCH',   budget:210,  impressions:'22k',  ctr:'0.9%', history:[{date:'Jun 13',action:'Created',val:''},{date:'Jun 15',action:'Flagged watch',val:'ROAS < 2×'}] },
-  { id:5, rank:5, name:'Generic brand awareness',          platform:'INSTAGRAM', type:'Feed',            client:'E-Shop MY',   spend:350,  cpa:41.00, roas:0.8, status:'FLAGGED', budget:350,  impressions:'44k',  ctr:'0.6%', history:[{date:'Jun 11',action:'Created',val:''},{date:'Jun 16',action:'Auto-flagged',val:'ROAS 0.8×'}] },
-]
+import { useState, useEffect } from 'react'
+import { api } from '../api.js'
 
 const STATUS_STYLE = {
   SCALING: { bg:'rgba(46,189,133,.12)',  color:'var(--profit)' },
@@ -125,29 +118,47 @@ function CampaignDetail({ ad, onClose }) {
 }
 
 export default function Ads() {
-  const [ads, setAds] = useState(INITIAL_ADS)
+  const [ads, setAds] = useState([])
   const [approval, setApproval] = useState(null) // { action, ad }
   const [detail, setDetail] = useState(null)
   const [filterClient, setFilterClient] = useState('ALL')
+  const [error, setError] = useState(null)
 
-  const clients = ['ALL', ...new Set(INITIAL_ADS.map(a => a.client))]
+  useEffect(() => {
+    api.getAds()
+      .then(setAds)
+      .catch(e => setError(e.message))
+  }, [])
 
-  const handleApprove = () => {
+  // Poll for pending approvals every 10s (agents may flag ads during a loop)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      api.getAds().then(setAds).catch(() => {})
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const clients = ['ALL', ...new Set(ads.map(a => a.client))]
+
+  const handleApprove = async () => {
     const { action, ad } = approval
-    setAds(prev => prev.map(a => {
-      if (a.id !== ad.id) return a
-      if (action === 'kill')  return { ...a, status:'KILLED', budget:0, history:[...a.history, { date:'Jun 17', action:'KILLED (approved)', val:'' }] }
-      if (action === 'scale') return { ...a, status:'SCALING', budget:Math.round(a.budget*1.2), history:[...a.history, { date:'Jun 17', action:'Scale +20% approved', val:`RM ${a.budget}→${Math.round(a.budget*1.2)}` }] }
-      return a
-    }))
+    try {
+      const updated = await api.approveAd(ad.id, action)
+      setAds(prev => prev.map(a => a.id === ad.id ? { ...a, ...updated } : a))
+    } catch (e) {
+      setError(e.message)
+    }
     setApproval(null)
   }
 
   const filtered = filterClient === 'ALL' ? ads : ads.filter(a => a.client === filterClient)
 
-  const totalSpend = ads.filter(a=>a.status!=='KILLED').reduce((s,a)=>s+a.spend,0)
-  const avgRoas    = ads.filter(a=>a.roas && a.status!=='KILLED').reduce((s,a,_,arr)=>s+a.roas/arr.length,0)
+  const liveAds    = ads.filter(a=>a.status!=='KILLED')
+  const roasAds    = liveAds.filter(a=>a.roas)
+  const totalSpend = liveAds.reduce((s,a)=>s+(a.spend||0),0)
+  const avgRoas    = roasAds.length > 0 ? roasAds.reduce((s,a)=>s+a.roas,0) / roasAds.length : 0
   const liveCount  = ads.filter(a=>!['KILLED','PAUSED'].includes(a.status)).length
+  const pendingCount = ads.filter(a=>a.pendingApproval).length
 
   return (
     <div style={{ padding:16, maxWidth:1400, margin:'0 auto' }}>
@@ -161,7 +172,7 @@ export default function Ads() {
           { label:'Total Spend MTD', val:`RM ${totalSpend.toLocaleString()}`, color:'var(--text)' },
           { label:'Avg ROAS',        val:`${avgRoas.toFixed(1)}×`,            color: avgRoas >= 3 ? 'var(--profit)' : 'var(--warn)' },
           { label:'Auto-rules',      val:'ARMED',                             color:'var(--gold)' },
-          { label:'Pending Approval',val: ads.filter(a=>a.status==='FLAGGED').length, color:'var(--loss)' },
+          { label:'Pending Approval',val: pendingCount, color:'var(--loss)' },
         ].map(k => (
           <div key={k.label} style={{ background:'var(--panel)', padding:'12px 16px' }}>
             <div style={{ fontSize:9, letterSpacing:1.5, textTransform:'uppercase', color:'var(--dim)', marginBottom:4 }}>{k.label}</div>
