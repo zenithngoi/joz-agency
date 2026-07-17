@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { api } from '../api.js'
+import Skeleton from '../components/Skeleton.jsx'
 
 const TAGS = ['ALL', 'HOOK', 'TIMING', 'ADS', 'FAIL', 'CLIENT']
 
@@ -121,7 +122,28 @@ export default function Memory() {
   }, [entries])
 
   if (loading) {
-    return <div style={{ padding:32, textAlign:'center', color:'var(--dim)', fontFamily:"'IBM Plex Mono',monospace", fontSize:12 }}>Loading memory...</div>
+    return (
+      <div style={{ padding:16, maxWidth:1300, margin:'0 auto' }}>
+        <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px,1fr))', gap:1, background:'var(--line)', borderRadius:8, overflow:'hidden', marginBottom:14 }}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} style={{ background:'var(--panel)', padding:'12px 16px' }}>
+              <Skeleton width={70} height={9} style={{ marginBottom:8 }} />
+              <Skeleton width={40} height={17} />
+            </div>
+          ))}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px,1fr))', gap:12 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} style={{ background:'var(--panel)', border:'1px solid var(--line)', borderRadius:8, padding:16 }}>
+              <Skeleton width={60} height={16} style={{ marginBottom:10 }} />
+              <Skeleton width="90%" height={13} style={{ marginBottom:8 }} />
+              <Skeleton width="100%" height={11} style={{ marginBottom:5 }} />
+              <Skeleton width="70%" height={11} />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -135,7 +157,7 @@ export default function Memory() {
       )}
 
       {/* summary strip */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px,1fr))', gap:1, background:'var(--line)', borderRadius:8, overflow:'hidden', marginBottom:14 }}>
+      <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px,1fr))', gap:1, background:'var(--line)', borderRadius:8, overflow:'hidden', marginBottom:14 }}>
         {[
           { label:'Total Entries',  val: stats.total,        color:'var(--text)' },
           { label:'Hooks',          val: stats.hooks,        color:'var(--gold)' },

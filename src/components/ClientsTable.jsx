@@ -1,10 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-
-const CLIENTS = [
-  { name: 'Demo Broker',    industry: 'Forex',       market: 'MY/SG', phase: 'Phase 1', followers: '48,217', roas: '4.2×',  leads: 342,  status: 'ACTIVE' },
-  { name: 'E-Shop MY',      industry: 'E-Commerce',  market: 'MY',    phase: 'Phase 2', followers: '22,440', roas: '3.8×',  leads: 194,  status: 'ACTIVE' },
-  { name: 'PropFirm SG',    industry: 'Prop Firm',   market: 'SG/ID', phase: 'Phase 1', followers: '9,100',  roas: '—',     leads: 41,   status: 'ONBOARDING' },
-]
+import { useState, useEffect } from 'react'
+import { api } from '../api.js'
+import Skeleton from './Skeleton.jsx'
 
 const STATUS_STYLE = {
   ACTIVE:      { bg: 'rgba(46,189,133,.12)', color: 'var(--profit)' },
@@ -12,8 +9,21 @@ const STATUS_STYLE = {
   PAUSED:      { bg: 'rgba(246,70,93,.12)',  color: 'var(--loss)' },
 }
 
+function totalFollowers(c) {
+  const f = c.followers || {}
+  return Object.values(f).reduce((s, v) => s + (Number(v) || 0), 0)
+}
+
 export default function ClientsTable() {
   const navigate = useNavigate()
+  const [clients, setClients] = useState([])
+  const [error, setError]     = useState(null)
+
+  useEffect(() => {
+    api.getClients()
+      .then(data => { setClients(data || []); setError(null) })
+      .catch(e => setError(e.message))
+  }, [])
 
   return (
     <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
@@ -50,21 +60,33 @@ export default function ClientsTable() {
             </tr>
           </thead>
           <tbody>
-            {CLIENTS.map((c, i) => (
-              <tr key={c.name}
+            {error && (
+              <tr><td colSpan={8} style={{ padding:'16px 14px', fontSize:11, color:'var(--loss)', fontFamily:"'IBM Plex Mono',monospace" }}>⚠ Backend error: {error}</td></tr>
+            )}
+            {!error && clients.length === 0 && (
+              Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i}>
+                  <td colSpan={8} style={{ padding:'11px 14px', borderBottom: i < 3 ? '1px solid var(--line-2)' : 'none' }}>
+                    <Skeleton height={12} />
+                  </td>
+                </tr>
+              ))
+            )}
+            {clients.map((c, i) => (
+              <tr key={c.id ?? c.name}
                 style={{ cursor: 'pointer' }}
                 onClick={() => navigate('/clients')}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--panel-2)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                <td style={{ padding: '11px 14px', borderBottom: i < CLIENTS.length-1 ? '1px solid var(--line-2)' : 'none', fontWeight: 600 }}>{c.name}</td>
-                <td style={{ padding: '11px 14px', borderBottom: i < CLIENTS.length-1 ? '1px solid var(--line-2)' : 'none', color: 'var(--muted)' }}>{c.industry}</td>
-                <td style={{ padding: '11px 14px', borderBottom: i < CLIENTS.length-1 ? '1px solid var(--line-2)' : 'none', fontFamily: "'IBM Plex Mono', monospace", color: 'var(--dim)' }}>{c.market}</td>
-                <td style={{ padding: '11px 14px', borderBottom: i < CLIENTS.length-1 ? '1px solid var(--line-2)' : 'none', color: 'var(--dim)' }}>{c.phase}</td>
-                <td style={{ padding: '11px 14px', borderBottom: i < CLIENTS.length-1 ? '1px solid var(--line-2)' : 'none', fontFamily: "'IBM Plex Mono', monospace" }}>{c.followers}</td>
-                <td style={{ padding: '11px 14px', borderBottom: i < CLIENTS.length-1 ? '1px solid var(--line-2)' : 'none', fontFamily: "'IBM Plex Mono', monospace", color: 'var(--profit)' }}>{c.roas}</td>
-                <td style={{ padding: '11px 14px', borderBottom: i < CLIENTS.length-1 ? '1px solid var(--line-2)' : 'none', fontFamily: "'IBM Plex Mono', monospace" }}>{c.leads}</td>
-                <td style={{ padding: '11px 14px', borderBottom: i < CLIENTS.length-1 ? '1px solid var(--line-2)' : 'none' }}>
+                <td style={{ padding: '11px 14px', borderBottom: i < clients.length-1 ? '1px solid var(--line-2)' : 'none', fontWeight: 600 }}>{c.name}</td>
+                <td style={{ padding: '11px 14px', borderBottom: i < clients.length-1 ? '1px solid var(--line-2)' : 'none', color: 'var(--muted)' }}>{c.industry || '—'}</td>
+                <td style={{ padding: '11px 14px', borderBottom: i < clients.length-1 ? '1px solid var(--line-2)' : 'none', fontFamily: "'IBM Plex Mono', monospace", color: 'var(--dim)' }}>{c.market || '—'}</td>
+                <td style={{ padding: '11px 14px', borderBottom: i < clients.length-1 ? '1px solid var(--line-2)' : 'none', color: 'var(--dim)' }}>{c.phase || '—'}</td>
+                <td style={{ padding: '11px 14px', borderBottom: i < clients.length-1 ? '1px solid var(--line-2)' : 'none', fontFamily: "'IBM Plex Mono', monospace" }}>{totalFollowers(c).toLocaleString()}</td>
+                <td style={{ padding: '11px 14px', borderBottom: i < clients.length-1 ? '1px solid var(--line-2)' : 'none', fontFamily: "'IBM Plex Mono', monospace", color: c.roas != null && c.roas >= 3 ? 'var(--profit)' : c.roas != null ? 'var(--warn)' : 'var(--dim)' }}>{c.roas != null ? `${c.roas}×` : '—'}</td>
+                <td style={{ padding: '11px 14px', borderBottom: i < clients.length-1 ? '1px solid var(--line-2)' : 'none', fontFamily: "'IBM Plex Mono', monospace" }}>{c.leads ?? 0}</td>
+                <td style={{ padding: '11px 14px', borderBottom: i < clients.length-1 ? '1px solid var(--line-2)' : 'none' }}>
                   <span style={{
                     fontSize: 9.5, padding: '3px 8px', borderRadius: 5,
                     background: STATUS_STYLE[c.status]?.bg,

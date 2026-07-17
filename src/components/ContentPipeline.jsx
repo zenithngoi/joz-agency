@@ -61,7 +61,7 @@ export default function ContentPipeline() {
       </div>
 
       {/* kanban board */}
-      <div style={{
+      <div className="kanban-board" style={{
         display:'grid',
         gridTemplateColumns:`repeat(${STAGES.length}, minmax(130px, 1fr))`,
         gap:1, background:'var(--line)',

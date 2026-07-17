@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { api } from '../api.js'
 
 const AGENTS = [
   { id:'orchestrator', name:'Orchestrator',    desc:'Coordinates all agents, reads heartbeat, writes summary', icon:'⚙', enabled:true,  status:'READY' },
@@ -48,11 +49,12 @@ function Toggle({ value, onChange }) {
   )
 }
 
-function Section({ title, children }) {
+function Section({ title, children, right }) {
   return (
     <div style={{ background:'var(--panel)', border:'1px solid var(--line)', borderRadius:8, overflow:'hidden', marginBottom:14 }}>
-      <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--line)', fontSize:10, letterSpacing:2, textTransform:'uppercase', color:'var(--muted)', fontWeight:700 }}>
+      <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--line)', fontSize:10, letterSpacing:2, textTransform:'uppercase', color:'var(--muted)', fontWeight:700, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <b style={{ color:'var(--gold)' }}>{title}</b>
+        {right}
       </div>
       <div style={{ padding:16 }}>{children}</div>
     </div>
@@ -68,9 +70,43 @@ export default function Settings() {
   const [apiKeyVisible, setApiKeyVisible]   = useState(false)
   const [saved, setSaved]                   = useState(false)
 
+  // ── Active client (daily cron) — persisted server-side ──────────────────
+  const [clients, setClients]               = useState([])
+  const [cronClientId, setCronClientId]     = useState('')
+  const [dbMode, setDbMode]                 = useState(null) // 'supabase' | 'in-memory' | null (unknown)
+  const [cronLoading, setCronLoading]       = useState(true)
+  const [cronSaving, setCronSaving]         = useState(false)
+  const [cronStatus, setCronStatus]         = useState(null) // { type:'ok'|'error', msg }
+
+  useEffect(() => {
+    Promise.all([api.getClients(), api.getSettings()])
+      .then(([clientList, settings]) => {
+        setClients(clientList || [])
+        setCronClientId(settings?.cronClientId || '')
+        setDbMode(settings?.db || null)
+      })
+      .catch(e => setCronStatus({ type: 'error', msg: e.message }))
+      .finally(() => setCronLoading(false))
+  }, [])
+
+  const saveCronClient = async () => {
+    setCronSaving(true)
+    setCronStatus(null)
+    try {
+      const res = await api.saveSettings({ cronClientId })
+      setCronClientId(res.cronClientId || cronClientId)
+      setCronStatus({ type: 'ok', msg: '✓ Active client saved' })
+      setTimeout(() => setCronStatus(null), 2500)
+    } catch (e) {
+      setCronStatus({ type: 'error', msg: e.message })
+    } finally {
+      setCronSaving(false)
+    }
+  }
+
   const toggleAgent = id => setAgents(prev => prev.map(a => a.id === id ? { ...a, enabled: !a.enabled } : a))
 
-  const saveSettings = () => { setSaved(true); setTimeout(() => setSaved(false), 2500) }
+  const saveMockSettings = () => { setSaved(true); setTimeout(() => setSaved(false), 2500) }
 
   const inputStyle = {
     background:'var(--ink)', border:'1px solid var(--line)', borderRadius:5,
@@ -90,6 +126,66 @@ export default function Settings() {
           fontFamily:"'IBM Plex Mono',monospace",
         }}>✓ Settings saved</div>
       )}
+
+      {/* active client / daily cron — persisted */}
+      <Section title="ACTIVE CLIENT (DAILY CRON)" right={
+        dbMode && (
+          <span style={{
+            fontSize:9, padding:'2px 8px', borderRadius:4, fontWeight:700, letterSpacing:.5,
+            fontFamily:"'IBM Plex Mono',monospace",
+            background: dbMode === 'supabase' ? 'rgba(46,189,133,.12)' : 'rgba(240,185,11,.12)',
+            color: dbMode === 'supabase' ? 'var(--profit)' : 'var(--warn)',
+          }}>{dbMode === 'supabase' ? 'SUPABASE' : 'IN-MEMORY'}</span>
+        )
+      }>
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ fontSize:11, color:'var(--dim)', lineHeight:1.6 }}>
+            The Orchestrator's daily cron runs against a single client. Choose which one before the next scheduled loop.
+          </div>
+
+          {dbMode === 'in-memory' && (
+            <div style={{ fontSize:10.5, color:'var(--warn)', fontFamily:"'IBM Plex Mono',monospace", lineHeight:1.6, background:'rgba(240,185,11,.08)', border:'1px solid rgba(240,185,11,.25)', borderRadius:6, padding:'8px 10px' }}>
+              ⚠ Running on in-memory storage — data resets on restart — complete Supabase setup
+            </div>
+          )}
+
+          <div style={{ display:'flex', gap:8, alignItems:'flex-end', flexWrap:'wrap' }}>
+            <div style={{ flex:1, minWidth:200 }}>
+              <div style={{ fontSize:10, letterSpacing:1, textTransform:'uppercase', color:'var(--dim)', marginBottom:6 }}>Client</div>
+              <select
+                value={cronClientId}
+                onChange={e => setCronClientId(e.target.value)}
+                disabled={cronLoading || clients.length === 0}
+                style={{ ...inputStyle, width:'100%', cursor: cronLoading ? 'default' : 'pointer' }}
+              >
+                {cronLoading && <option value="">Loading clients...</option>}
+                {!cronLoading && clients.length === 0 && <option value="">No clients available</option>}
+                {!cronLoading && clients.length > 0 && !cronClientId && <option value="">— Select a client —</option>}
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <button
+              onClick={saveCronClient}
+              disabled={cronLoading || cronSaving || !cronClientId}
+              style={{
+                padding:'8px 22px', borderRadius:6,
+                border:'1px solid rgba(212,175,55,.6)',
+                background: (cronLoading || cronSaving || !cronClientId) ? 'transparent' : 'rgba(212,175,55,.1)',
+                color: (cronLoading || cronSaving || !cronClientId) ? 'var(--dim)' : 'var(--gold)',
+                fontSize:11, fontWeight:700, letterSpacing:1, textTransform:'uppercase',
+                cursor: (cronLoading || cronSaving || !cronClientId) ? 'not-allowed' : 'pointer',
+              }}
+            >{cronSaving ? 'Saving...' : 'Save'}</button>
+          </div>
+
+          {cronStatus && (
+            <div style={{
+              fontSize:11, fontFamily:"'IBM Plex Mono',monospace",
+              color: cronStatus.type === 'ok' ? 'var(--profit)' : 'var(--loss)',
+            }}>{cronStatus.type === 'ok' ? cronStatus.msg : `⚠ ${cronStatus.msg}`}</div>
+          )}
+        </div>
+      </Section>
 
       {/* API config */}
       <Section title="API CONFIGURATION">
@@ -210,7 +306,7 @@ export default function Settings() {
 
       {/* save button */}
       <div style={{ display:'flex', justifyContent:'flex-end', gap:10 }}>
-        <button onClick={saveSettings} style={{
+        <button onClick={saveMockSettings} style={{
           padding:'10px 28px', borderRadius:7,
           border:'1px solid rgba(212,175,55,.6)', background:'rgba(212,175,55,.1)',
           color:'var(--gold)', fontSize:12, fontWeight:700, letterSpacing:1,

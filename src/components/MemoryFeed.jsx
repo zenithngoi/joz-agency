@@ -1,10 +1,6 @@
-const ENTRIES = [
-  { time: 'TODAY 14:32', tag: 'HOOK',   text: 'Numbers-in-first-frame ("RM0 → RM10k") beats question hooks by', highlight: '+41% retention', suffix: ' on TikTok. Promoted to hooks-library.' },
-  { time: 'TODAY 11:05', tag: 'TIMING', text: 'MY/SG audience peak shifted: 8–10 PM now outperforms lunch slot', highlight: '2.3×', suffix: '. Publishing schedule updated.' },
-  { time: 'TODAY 09:48', tag: 'ADS',    text: 'Boosting organic posts after 3h velocity check yields CPA', highlight: '38% lower', suffix: ' than cold creative. Rule confidence: HIGH (n=14).' },
-  { time: 'YESTERDAY',   tag: 'FAIL',   text: 'Long-form X threads (>8 posts) underperform 5-post threads. Logged to failures.md — Content Agent capped thread length.', highlight: null, suffix: '' },
-  { time: 'JUN 09',      tag: 'CLIENT', text: 'Payout-proof content converts', highlight: '3× better', suffix: ' than education content for lead gen. Updated clients/propfirm.md.' },
-]
+import { useState, useEffect, useCallback } from 'react'
+import { api } from '../api.js'
+import Skeleton from './Skeleton.jsx'
 
 const TAG_COLORS = {
   HOOK:   'var(--gold)',
@@ -14,7 +10,37 @@ const TAG_COLORS = {
   CLIENT: 'var(--gold-bright)',
 }
 
+function isToday(dateStr) {
+  if (!dateStr) return false
+  const today = new Date().toISOString().split('T')[0]
+  return dateStr === today
+}
+
 export default function MemoryFeed() {
+  const [entries, setEntries] = useState([])
+  const [error, setError]     = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(() => {
+    api.getMemory()
+      .then(data => { setEntries(data || []); setError(null) })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 15000)
+    return () => clearInterval(t)
+  }, [load])
+
+  // Most recent first. Entries are unshifted server-side on create, but sort
+  // defensively by id (fallback timestamp-ish) so the feed is stable regardless.
+  const latest = [...entries]
+    .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))
+    .slice(0, 3)
+  const todayCount = entries.filter(e => isToday(e.date)).length
+
   return (
     <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
       {/* header */}
@@ -23,27 +49,46 @@ export default function MemoryFeed() {
           <b style={{ color: 'var(--gold)' }}>MEMORY.MD</b> — latest learnings
         </div>
         <div style={{ fontSize: 9.5, padding: '3px 8px', borderRadius: 20, border: '1px solid var(--line)', color: 'var(--muted)', letterSpacing: .5 }}>
-          +3 TODAY
+          +{todayCount} TODAY
         </div>
       </div>
 
+      {error && (
+        <div style={{ padding:'10px 14px', fontSize:11, color:'var(--loss)', fontFamily:"'IBM Plex Mono',monospace" }}>
+          ⚠ Backend error: {error}
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ display:'flex', flexDirection:'column' }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} style={{ padding:'9px 14px', borderBottom: i < 2 ? '1px solid var(--line-2)' : 'none' }}>
+              <Skeleton width={110} height={9} style={{ marginBottom: 6 }} />
+              <Skeleton width="90%" height={12} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && latest.length === 0 && (
+        <div style={{ padding:'18px 14px', fontSize:11, color:'var(--dim)', textAlign:'center', fontStyle:'italic' }}>No memory entries yet.</div>
+      )}
+
       {/* feed */}
       <div style={{ maxHeight: 260, overflowY: 'auto' }}>
-        {ENTRIES.map((e, i) => (
-          <div key={i} style={{
+        {!loading && latest.map((e, i) => (
+          <div key={e.id ?? i} style={{
             padding: '9px 14px',
-            borderBottom: i < ENTRIES.length - 1 ? '1px solid var(--line-2)' : 'none',
+            borderBottom: i < latest.length - 1 ? '1px solid var(--line-2)' : 'none',
             fontSize: 11.5, lineHeight: 1.6
           }}>
             <div className="mono" style={{ fontSize: 9.5, color: 'var(--dim)', letterSpacing: .5, marginBottom: 3 }}>
-              {e.time}
+              {e.date || '—'} · {e.client}
             </div>
             <span style={{ color: TAG_COLORS[e.tag] || 'var(--gold)', fontSize: 9.5, fontWeight: 700, letterSpacing: 1, marginRight: 6 }}>
               {e.tag}
             </span>
-            <span style={{ color: 'var(--muted)' }}>{e.text} </span>
-            {e.highlight && <b style={{ color: 'var(--profit)' }}>{e.highlight}</b>}
-            <span style={{ color: 'var(--muted)' }}>{e.suffix}</span>
+            <span style={{ color: 'var(--muted)' }}>{e.title}</span>
           </div>
         ))}
       </div>

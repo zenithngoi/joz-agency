@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api.js'
+import Skeleton from '../components/Skeleton.jsx'
 
 const PLATFORMS = ['ALL', 'TIKTOK', 'IG REEL', 'YT SHORT', 'X']
 
@@ -149,6 +150,7 @@ export default function Content() {
   const [detailCard, setDetailCard]   = useState(null)
   const [agentToast, setAgentToast]   = useState(false)
   const [error, setError]             = useState(null)
+  const [loading, setLoading]         = useState(true)
 
   const totalCards = stages.reduce((a, s) => a + s.cards.length, 0)
 
@@ -157,6 +159,7 @@ export default function Content() {
     api.getPipeline()
       .then(pipeline => setStages(pipelineToStages(pipeline)))
       .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
   }, [])
 
   const addCard = async (stageId, form) => {
@@ -254,12 +257,19 @@ export default function Content() {
       </div>
 
       {/* kanban board */}
-      <div style={{
+      <div className="kanban-board" style={{
         display:'grid',
         gridTemplateColumns:`repeat(${stages.length}, minmax(180px,1fr))`,
         gap:1, background:'var(--line)', borderRadius:8, overflow:'hidden', overflowX:'auto',
       }}>
-        {stages.map(stage => {
+        {loading ? stages.map(stage => (
+          <div key={stage.id} style={{ background:'var(--ink)', padding:'12px 10px', minHeight:420 }}>
+            <Skeleton width="60%" height={9} style={{ marginBottom:12 }} />
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} height={54} style={{ marginBottom:6 }} />
+            ))}
+          </div>
+        )) : stages.map(stage => {
           const filtered = filterCards(stage.cards)
           const accent = STAGE_ACCENT[stage.id]
           const isOver = dragOver === stage.id
@@ -331,7 +341,7 @@ export default function Content() {
       </div>
 
       {/* stats footer */}
-      <div style={{
+      <div className="kpi-grid" style={{
         display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px,1fr))',
         gap:1, background:'var(--line)', borderRadius:8, overflow:'hidden', marginTop:14,
       }}>

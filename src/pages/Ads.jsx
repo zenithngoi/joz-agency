@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api.js'
+import Skeleton from '../components/Skeleton.jsx'
 
 const STATUS_STYLE = {
   SCALING: { bg:'rgba(46,189,133,.12)',  color:'var(--profit)' },
@@ -123,11 +124,13 @@ export default function Ads() {
   const [detail, setDetail] = useState(null)
   const [filterClient, setFilterClient] = useState('ALL')
   const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     api.getAds()
       .then(setAds)
       .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
   }, [])
 
   // Poll for pending approvals every 10s (agents may flag ads during a loop)
@@ -166,7 +169,7 @@ export default function Ads() {
       {detail   && <CampaignDetail ad={detail} onClose={() => setDetail(null)} />}
 
       {/* summary strip */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px,1fr))', gap:1, background:'var(--line)', borderRadius:8, overflow:'hidden', marginBottom:14 }}>
+      <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px,1fr))', gap:1, background:'var(--line)', borderRadius:8, overflow:'hidden', marginBottom:14 }}>
         {[
           { label:'Live Campaigns', val: liveCount,                           color:'var(--profit)' },
           { label:'Total Spend MTD', val:`RM ${totalSpend.toLocaleString()}`, color:'var(--text)' },
@@ -212,7 +215,14 @@ export default function Ads() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((ad, i) => {
+              {loading && Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  <td colSpan={11} style={{ padding:'11px 14px', borderBottom: i < 4 ? '1px solid rgba(34,42,59,.6)' : 'none' }}>
+                    <Skeleton height={12} />
+                  </td>
+                </tr>
+              ))}
+              {!loading && filtered.map((ad, i) => {
                 const killed = ad.status === 'KILLED'
                 const sep = i < filtered.length-1 ? '1px solid rgba(34,42,59,.6)' : 'none'
                 return (

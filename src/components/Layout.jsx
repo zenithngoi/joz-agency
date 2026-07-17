@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
-import { api } from '../api.js'
+import { api, onBackendStatus } from '../api.js'
 
 const NAV = [
   { to: '/dashboard', icon: '⬛', label: 'Dashboard' },
@@ -28,7 +28,17 @@ export default function Layout() {
   const [agents, setAgents]       = useState([])
   const [loopStatus, setLoop]     = useState({ running:false, loopNumber:12 })
   const [backendOk, setBackendOk] = useState(null) // null=checking, true, false
+  const [retryStatus, setRetryStatus] = useState(null) // null | { attempt, max }
   const location = useLocation()
+
+  // subscribe to api.js's cold-start retry status
+  useEffect(() => {
+    const unsub = onBackendStatus(detail => {
+      if (detail.status === 'retrying') setRetryStatus({ attempt: detail.attempt, max: detail.max })
+      else setRetryStatus(null) // 'ok' or 'failed' both clear the "retrying" banner
+    })
+    return unsub
+  }, [])
 
   // rotate ticker every 4.5s
   useEffect(() => {
@@ -79,7 +89,7 @@ export default function Layout() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
 
       {/* TOPBAR */}
-      <header style={{
+      <header className="no-print" style={{
         height: 'var(--topbar-h)', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 20px', borderBottom: '1px solid var(--line)',
@@ -115,11 +125,25 @@ export default function Layout() {
         </div>
       </header>
 
+      {/* cold-start retry banner */}
+      {retryStatus && (
+        <div className="no-print" style={{
+          flexShrink: 0, padding: '6px 20px',
+          background: 'rgba(240,185,11,.12)', borderBottom: '1px solid rgba(240,185,11,.35)',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--warn)', animation: 'pulse 1s infinite', flexShrink: 0 }} />
+          <span className="mono" style={{ fontSize: 10.5, color: 'var(--warn)' }}>
+            Backend waking up (Railway cold start) — retrying… ({retryStatus.attempt}/{retryStatus.max})
+          </span>
+        </div>
+      )}
+
       {/* BODY */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="app-body" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* SIDEBAR */}
-        <aside style={{
+        <aside className="no-print app-sidebar" style={{
           width: 'var(--sidebar-w)', flexShrink: 0,
           borderRight: '1px solid var(--line)',
           background: 'var(--panel)',
@@ -144,7 +168,7 @@ export default function Layout() {
           </nav>
 
           {/* sidebar footer — live agent status + loop trigger */}
-          <div style={{ borderTop: '1px solid var(--line)', padding: '12px 16px' }}>
+          <div className="app-sidebar-footer" style={{ borderTop: '1px solid var(--line)', padding: '12px 16px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
               <div style={{ fontSize: 9, letterSpacing: 1.5, color: 'var(--dim)', textTransform: 'uppercase' }}>
                 Loop #{loopStatus.loopNumber}
@@ -181,7 +205,7 @@ export default function Layout() {
         {/* MAIN CONTENT */}
         <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
           {/* page header bar */}
-          <div style={{
+          <div className="no-print" style={{
             padding: '14px 24px', borderBottom: '1px solid var(--line)',
             background: 'var(--panel)', flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between'
@@ -206,7 +230,7 @@ export default function Layout() {
       </div>
 
       {/* STICKY TICKER */}
-      <div style={{
+      <div className="no-print" style={{
         height: 34, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10,
         padding: '0 20px', borderTop: '1px solid var(--line)',
         background: '#0D111B', fontFamily: "'IBM Plex Mono', monospace",

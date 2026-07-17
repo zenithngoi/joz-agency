@@ -37,3 +37,103 @@ button { cursor: pointer; font-family: 'Space Grotesk', sans-serif; }
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+/* ── SKELETON LOADERS ────────────────────────────────────────────────────── */
+.skeleton-block {
+  position: relative;
+  overflow: hidden;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.skeleton-block::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(212,175,55,.10), transparent);
+  animation: skeleton-shimmer 1.4s infinite;
+}
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* ── MOBILE ──────────────────────────────────────────────────────────────
+   Sidebar collapses to a horizontal top nav under the topbar; tables and
+   kanban boards scroll horizontally instead of squeezing/overflowing the
+   viewport; KPI grids drop to 2 columns. CSS-only — JSX only adds
+   className hooks (.app-sidebar, .app-main) in Layout.jsx. */
+@media (max-width: 768px) {
+  .app-body { flex-direction: column !important; }
+
+  .app-sidebar {
+    width: 100% !important;
+    flex-direction: row !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+  .app-sidebar nav {
+    flex: none !important;
+    display: flex !important;
+    padding: 4px 6px !important;
+  }
+  .app-sidebar nav a {
+    padding: 8px 12px !important;
+    white-space: nowrap;
+    border-right: none !important;
+    border-bottom: 2px solid transparent;
+  }
+  .app-sidebar nav a[aria-current="page"],
+  .app-sidebar nav a.active {
+    border-bottom-color: var(--gold) !important;
+  }
+  .app-sidebar-footer { display: none !important; }
+
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+
+  table { min-width: 640px; }
+
+  .kanban-board { grid-auto-flow: column !important; grid-auto-columns: 78vw !important; grid-template-columns: none !important; }
+}
+
+/* ── PRINT / PDF EXPORT ──────────────────────────────────────────────────────
+   Reports.jsx wraps the printable report in <div className="print-area">.
+   Chrome (Layout.jsx header/sidebar/ticker) and any interactive controls are
+   marked className="no-print". Everything else is hidden while printing;
+   redefining the CSS custom properties on .print-area flips the whole
+   report to a white-background / black-text palette because all component
+   styling already reads colors from var(--*). */
+@media print {
+  html, body, #root { height: auto !important; overflow: visible !important; background: #fff !important; }
+  * { overflow: visible !important; }
+
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+
+  .print-area {
+    position: absolute;
+    left: 0; top: 0; width: 100%;
+    margin: 0 !important;
+    padding: 12px !important;
+    max-width: none !important;
+    background: #fff !important;
+
+    --ink: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #f2f2f2;
+    --line: #cccccc;
+    --line-2: #dddddd;
+    --gold: #7a5c00;
+    --gold-bright: #7a5c00;
+    --gold-dim: #f2ead0;
+    --profit: #146c43;
+    --loss: #a3222f;
+    --warn: #7a5c00;
+    --text: #000000;
+    --muted: #222222;
+    --dim: #444444;
+  }
+
+  .no-print, .no-print * { display: none !important; }
+}
