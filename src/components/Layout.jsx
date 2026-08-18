@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { api, onBackendStatus } from '../api.js'
+import { useAuth } from '../auth/AuthContext.jsx'
 
 const NAV = [
   { to: '/dashboard', icon: '⬛', label: 'Dashboard' },
@@ -30,6 +31,9 @@ export default function Layout() {
   const [backendOk, setBackendOk] = useState(null) // null=checking, true, false
   const [retryStatus, setRetryStatus] = useState(null) // null | { attempt, max }
   const location = useLocation()
+  const { session, signOut } = useAuth()
+  const userEmail = session?.user?.email || ''
+  const userInitial = userEmail ? userEmail[0].toUpperCase() : 'Z'
 
   // subscribe to api.js's cold-start retry status
   useEffect(() => {
@@ -117,11 +121,7 @@ export default function Layout() {
             <div style={{ fontSize: 10, color: 'var(--dim)', letterSpacing: 1 }}>OPERATING DAY</div>
             <div className="mono" style={{ fontSize: 13, color: 'var(--gold)' }}>001</div>
           </div>
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'var(--gold-dim)', border: '1px solid rgba(212,175,55,.3)',
-            display: 'grid', placeItems: 'center', fontSize: 14, fontWeight: 700, color: 'var(--gold)'
-          }}>Z</div>
+          <div title={userEmail ? `Signed in as ${userEmail} - click to sign out` : 'Sign out'} onClick={signOut} style={{ width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', background: 'var(--gold-dim)', border: '1px solid rgba(212,175,55,.3)', display: 'grid', placeItems: 'center', fontSize: 14, fontWeight: 700, color: 'var(--gold)' }}>{userInitial}</div>
         </div>
       </header>
 
